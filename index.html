@@ -1,0 +1,222 @@
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<script>
+/*
+
+Author: Alberto Calderone
+e-mail: sinnefa@gmail.com
+
+Video Grame Programming and Graphics Fundamentals
+-------------------------------------------------
+1) What are the essential parts of a video grame
+2) How graphics and rendering works
+
+*/
+
+colors = { // Color palette
+	0: "darkblue",
+	1: "white",
+	2: "blue",
+	3: "red",
+	4: "green"
+}
+
+// Graphic card memory holds frames and other things like textures etc.
+// As memory access is much faster, all GPU calculations are done in memory
+// The dislaying process renders complete frames only
+// For the sake of this tutorial we will be working with two frames only
+// Just to show how memory cards/ displays etc work
+
+frame0 = new Array(100).fill(0).map(() => new Array(100).fill(0)); // Complete frame
+frame1 = new Array(100).fill(0).map(() => new Array(100).fill(0)); // Working frame
+background = new Array(100).fill(0).map(() => new Array(100).fill(0));
+
+// Images are all represented as pixels.
+// Usually they are relreented with primiteves like circles, lines and polygones
+// For the sake of this tutorial we will be using pixel to show how images are rendered
+
+star = [ // Stars for the background
+[0, 1, 0],
+[1, 0, 1],
+[0, 1, 0]
+];
+
+// These are sprites: game characters.
+ball = [ // The bouncing ball with its coordinates and direction vectors
+[0, 3, 3, 0],
+[3, 3, 3, 3],
+[3, 3, 3, 3],
+[0, 3, 3, 0]
+];
+ball_x = 50;
+ball_y = 75;
+ball_x_step = 2; // direction vectors, sign is direction, values are magnitudes
+ball_y_step = 2;
+
+spaceship = [ // Spaceship controlled by the user
+[0, 1, 1, 1, 1, 1, 1, 1, 1, 0],
+[4, 2, 3, 3, 3, 3, 3, 3, 2, 4],
+[4, 2, 2, 2, 2, 2, 2, 2, 2, 4],
+[0, 4, 4, 4, 4, 4, 4, 4, 4, 0],
+];
+spaceship_x = 47;
+spaceship_y = 80;
+spaceship_x_step = 0;
+spaceship_y_step = 0;
+
+// ******** GPU Processes *********
+// There is a process which triggers pixes which should be turned on with a given color
+function point(x, y, color, canvas){
+	canvas.fillStyle = colors[color];
+	canvas.fillRect(x,y,1,1); //due to HTML5 canvas we use a rect but this can easily be a single pixel
+}
+// This function draws a frame onto the monitor
+function drawframe(frame, canvas) {
+	for (var i = 0 ; i<frame.length ; i++)
+		for (var j = 0 ; j<frame[0].length ; j++)
+			point(j,i,frame[i][j],canvas);
+}
+
+// This function swaps the ready frame and the visualized frame
+function copyframe(source) {
+	var newArray = new Array(source.length).fill(0).map(() => new Array(source[0].length).fill(0));
+	for (var i = 0 ; i<source.length ; i++)
+		for (var j = 0 ; j<source[0].length ; j++)
+			newArray[i][j] = source[i][j];
+	return newArray;
+}
+// This function is used to build the frame in memory
+function drawSomething(sprite, x, y, frame) {
+	for (var i = 0 ; i<sprite.length ; i++)
+		for (var j = 0 ; j<sprite[0].length ; j++)
+			frame[y+i][x+j] = sprite[i][j];
+}
+// Draws only the frame0, the one which is ready, the GPU is nt working on it
+function draw(ctx) {
+	drawframe(frame0,ctx);
+}
+// *************************************
+
+
+// ******** Helping Functions *********
+function getRandomInt(max) {
+ 	return Math.floor(Math.random() * max);
+}
+
+// This implements a controller and acts accordingly
+function myKeyPress(e){
+	var keynum;
+	if(e.which){             
+		keynum = e.which;
+		if (keynum == 39)
+			spaceship_x_step = 2;
+		if (keynum == 37)
+			spaceship_x_step = -2;
+	}
+}
+// *************************************
+
+// ***** Video Game Building Blocks
+
+// Every videogame has a starting step where things are initialized, characters, background etc.
+// For the same of this tutorial we will create a sky full of stars, our texture, loaded in memory
+// We will recall it every time we need. The same usually goes with images and characters which
+// are kept in memory
+
+function initWorld() {
+	var n_stars = 10;
+	for(var i = 0; i < n_stars; i++){
+		x = getRandomInt(95);
+		y = getRandomInt(95);
+		drawSomething(star,x,y,background);
+	}
+}
+// Another important step is the clock ticking. A world has a clock which ticks
+// at every tick things are recalculated. For complex games: geometry, lights etc.
+// For the sake of this tutorial we will be re-calculating the ball position
+// the spaceship position and check bouncing and collision
+
+function doStep(canvas) {
+	frame1 = copyframe(background);
+
+	spaceship_x+=spaceship_x_step;
+
+	if (spaceship_x>100)
+		spaceship_x-=10;
+	if (spaceship_x<0)
+		spaceship_x+=10;
+	drawSomething(spaceship, spaceship_x, spaceship_y, frame1);
+
+	ball_x+=ball_x_step;
+	ball_y+=ball_y_step;
+
+	if (ball_x>95)
+		ball_x_step=-2;
+	if (ball_x<1)
+		ball_x_step=2;
+	if (ball_y>95)
+		ball_y_step=-2;
+	if (ball_y<1)
+		ball_y_step=2;
+
+	collision();
+
+	drawSomething(ball, ball_x, ball_y, frame1);
+	frame0 = copyframe(frame1);
+}
+
+// Another block in a basic videogam is the block which checks the "physics" of the game
+// It can be gravity or whatever, in our case we want to check that the ball cannot pass
+// through the spaceship
+function collision() {
+	if ((	ball_y>spaceship_y && ball_y<spaceship_y+spaceship.length &&
+		ball_x>spaceship_x && ball_x<spaceship_x+spaceship[0].length) ||
+	   (	ball_y+ball.length>spaceship_y && ball_y+ball.length<spaceship_y+spaceship.length &&
+		ball_x+ball[0].length>spaceship_x && ball_x+ball[0].length<spaceship_x+spaceship[0].length))	 {
+		ball_y_step *= -1;
+	}
+}
+
+</script>
+</head>
+<body style="overflow:hidden;
+		align:center;
+		background: url(bg.jpg) no-repeat center center fixed; 
+		-webkit-background-size: cover; 
+		-moz-background-size: cover; 
+		-o-background-size: cover;
+		background-size:cover;
+		font-family:'Trebuchet MS', Helvetica, sans-serif;
+		font-size: 13px;
+		color:white">
+<center><br>
+<canvas id="canvas" 
+	width="100" 
+	height="100"
+	style="width:500px;height:500px;background-color:darkblue;border:2px solid black;border-radius:5px"></canvas>
+<script>
+
+var c = document.getElementById("canvas");
+var ctx = c.getContext("2d");
+
+// Finally, controls, in our case we use keyboard
+// We bind event listeners which are triggered upon user action
+document.addEventListener("keydown", myKeyPress);
+right = new KeyboardEvent('keydown', {'keyCode':39,'which':39});
+left = new KeyboardEvent('keydown', {'keyCode':37,'which':37});
+
+initWorld();
+graph_memory = setInterval(doStep,100,ctx); // Simulates GPU processing, you can play with it's speed
+monitor = setInterval(draw,10,ctx); // simulates the monitor rendering
+
+// Due to JS limitations it's not really possible to run this in parallel but this an acceptable approximation
+// We are focusing on building blocks and basic concepts, for more advanced topics there are better tutorial online.
+// This tutorial is a mix of theoretical and basic practical aspects.
+// I hope you enjoyed it.
+
+</script>
+</body>
+</html>
+
